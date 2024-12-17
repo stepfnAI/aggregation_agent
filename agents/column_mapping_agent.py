@@ -1,15 +1,16 @@
-from typing import Dict
+from typing import List, Dict, Any
 import pandas as pd
-from sfn_blueprint import SFNAgent, Task, SFNOpenAIClient, SFNPromptManager
+from sfn_blueprint import SFNAgent, Task, SFNAIHandler, SFNPromptManager
 from config.model_config import MODEL_CONFIG
 import os
 import json
 import re
 
 class SFNColumnMappingAgent(SFNAgent):
-    def __init__(self):
+    def __init__(self, llm_provider: str):
         super().__init__(name="Column Mapping Advisor", role="Data Column Mapping Advisor")
-        self.client = SFNOpenAIClient()
+        self.llm_provider = llm_provider
+        self.ai_handler = SFNAIHandler()
         self.model_config = MODEL_CONFIG["column_mapping"]
         parent_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
         prompt_config_path = os.path.join(parent_path, 'config', 'prompt_config.json')
@@ -65,22 +66,28 @@ class SFNColumnMappingAgent(SFNAgent):
         # Get prompts
         system_prompt, user_prompt = self.prompt_manager.get_prompt(
             'column_mapping',
-            llm_provider='openai',
+            llm_provider=self.llm_provider,
             **task_data
         )
 
-        # Get suggestions from OpenAI
-        response = self.client.chat.completions.create(
-            model=self.model_config["model"],
-            messages=[
+        configuration = {
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=self.model_config["temperature"],
-            max_tokens=self.model_config["max_tokens"]
-        )        
+            "temperature": self.model_config["temperature"],
+            "max_tokens": self.model_config["max_tokens"],
+            "n": self.model_config["n"],
+            "stop": self.model_config["stop"]
+        }
+        response, token_cost_summary = self.ai_handler.route_to(
+            llm_provider=self.llm_provider, 
+            configuration=configuration, 
+            model=self.model_config['model']
+        )
+
         try:
-            suggestions = self._clean_json_string(response.choices[0].message.content)
+            suggestions = self._clean_json_string(response)
             return {
                 'customer_id': suggestions.get('customer_id'),
                 'date': suggestions.get('date'),
@@ -89,3 +96,32 @@ class SFNColumnMappingAgent(SFNAgent):
         except Exception as e:
             print(f"Error in column mapping: {e}")
             return {'customer_id': None, 'date': None, 'product_id': None}
+    
+    def get_validation_params(self, response: List[str], validation_task: Task) -> dict:
+        """
+        Generate validation prompts for the column mapping suggestions response.
+        
+        :param response: List of generated column mapping suggestions to validate
+        :param validation_task: Task object containing validation context
+        :return: Dictionary containing validation prompts
+        """
+        # Extract necessary data from validation task
+        df = validation_task.data.get('table')
+        if df is None:
+            return {'customer_id': None, 'date': None, 'product_id': None}
+
+        # Prepare context for validation
+        validation_context = {
+            'columns': list(df.columns),
+            'sample_data': df.head(5).to_dict(),
+            'actual_output': '\n'.join(response),
+        }
+        
+        # Get validation prompts from prompt config
+        validation_prompts = self.prompt_manager.get_prompt(
+            agent_type='column_mapping',
+            llm_provider=self.llm_provider,
+            prompt_type='validation',
+            **validation_context
+        )
+        return validation_prompts

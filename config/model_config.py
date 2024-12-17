@@ -1,7 +1,10 @@
 from sfn_blueprint import MODEL_CONFIG
 
-MODEL_CONFIG["aggregation_advisor"] = {
-    "model": "gpt-4",
+DEFAULT_LLM_PROVIDER='openai'
+DEFAULT_LLM_MODEL='gpt-4o-mini' 
+
+MODEL_CONFIG["aggregation_suggestions"] = {
+    "model": DEFAULT_LLM_MODEL,
     "temperature": 0.3,
     "max_tokens": 1000,
     "n": 1,
@@ -9,7 +12,7 @@ MODEL_CONFIG["aggregation_advisor"] = {
 }
 
 MODEL_CONFIG["column_mapping"] = {
-    "model": "gpt-4",
+    "model": DEFAULT_LLM_MODEL,
     "temperature": 0.3,
     "max_tokens": 500,
     "n": 1,

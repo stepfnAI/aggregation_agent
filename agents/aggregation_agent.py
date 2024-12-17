@@ -1,16 +1,17 @@
 from typing import List, Dict, Union
 import pandas as pd
-from sfn_blueprint import SFNAgent, Task, SFNOpenAIClient, SFNPromptManager
+from sfn_blueprint import SFNAgent, Task, SFNAIHandler, SFNPromptManager
 from config.model_config import MODEL_CONFIG
 import os
 import json
 import re
 
 class SFNAggregationAgent(SFNAgent):
-    def __init__(self):
+    def __init__(self, llm_provider: str):
         super().__init__(name="Aggregation Advisor", role="Data Aggregation Advisor")
-        self.client = SFNOpenAIClient()
-        self.model_config = MODEL_CONFIG["aggregation_advisor"]
+        self.llm_provider = llm_provider
+        self.ai_handler = SFNAIHandler()
+        self.model_config = MODEL_CONFIG["aggregation_suggestions"]
         parent_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
         prompt_config_path = os.path.join(parent_path, 'config', 'prompt_config.json')
         self.prompt_manager = SFNPromptManager(prompt_config_path)
@@ -139,23 +140,69 @@ class SFNAggregationAgent(SFNAgent):
 
         system_prompt, user_prompt = self.prompt_manager.get_prompt(
             'aggregation_suggestions',
-            llm_provider='openai',
+            llm_provider=self.llm_provider,
             **task_data
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model_config["model"],
-            messages=[
+        configuration = {
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=self.model_config["temperature"],
-            max_tokens=self.model_config["max_tokens"]
+            "temperature": self.model_config["temperature"],
+            "max_tokens": self.model_config["max_tokens"],
+            "n": self.model_config["n"],
+            "stop": self.model_config["stop"]
+        }
+
+        response, token_cost_summary = self.ai_handler.route_to(
+            llm_provider=self.llm_provider, 
+            configuration=configuration, 
+            model=self.model_config['model']
         )
 
         try:
-            cleaned_json = self._clean_json_string(response.choices[0].message.content)
+            cleaned_json = self._clean_json_string(response)
             return cleaned_json
         except Exception as e:
             print(f"Error processing aggregation suggestions: {e}")
             return {}
+        
+    def get_validation_params(self, response: List[str], validation_task: Task) -> dict:
+        """
+        Generate validation prompts for the aggregation suggestions response.
+        
+        :param response: List of generated aggregation suggestions to validate
+        :param validation_task: Task object containing validation context
+        :return: Dictionary containing validation prompts
+        """
+        # Extract necessary data from validation task
+        df = validation_task.data.get('table')
+        # Prepare data type dictionary
+        feature_dtype_dict = df.dtypes.astype(str).to_dict()
+        
+        # Prepare sample data
+        sample_data_dict = df.head(5).to_dict()
+        
+        # Basic column descriptions
+        column_text_describe_dict = {
+            col: f"Column containing {dtype} type data" 
+            for col, dtype in feature_dtype_dict.items()
+        }
+
+        # Prepare context for validation
+        validation_context = {
+            'feature_dtype_dict':feature_dtype_dict,
+            'sample_data_dict': sample_data_dict,
+            'column_text_describe_dict': column_text_describe_dict,
+            'actual_output': '\n'.join(response)
+        }
+        
+        # Get validation prompts from prompt config
+        validation_prompts = self.prompt_manager.get_prompt(
+            agent_type='aggregation_suggestions',
+            llm_provider=self.llm_provider,
+            prompt_type='validation',
+            **validation_context
+        )
+        return validation_prompts

@@ -1,11 +1,11 @@
 import streamlit as st
-from sfn_blueprint import Task, SFNSessionManager
+from sfn_blueprint import Task, SFNSessionManager, SFNDataLoader, SFNStreamlitView, SFNValidateAndRetryAgent
 from agents.aggregation_agent import SFNAggregationAgent
 from agents.column_mapping_agent import SFNColumnMappingAgent
 from views.streamlit_views import StreamlitView
 import logging
 from utils.data_type_utils import DataTypeUtils
-from utils.custom_data_loader import CustomDataLoader
+from config.model_config import DEFAULT_LLM_PROVIDER
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 def run_app():
     # Initialize view and session
     view = StreamlitView(title="Data Aggregation Advisor")
+    sfn_view = SFNStreamlitView(title = "Aggregation Agent App")
+
     session = SFNSessionManager()
     
     # Reset button
@@ -38,10 +40,14 @@ def run_app():
     if uploaded_file is not None:
         if session.get('data') is None:
             with view.display_spinner('Loading data...'):
-                data_loader = CustomDataLoader()
-                data = data_loader.execute_task(Task("Load file", data=uploaded_file))
+                data_loader = SFNDataLoader()
+                file_path = sfn_view.save_uploaded_file(uploaded_file)
+                data = data_loader.execute_task(Task("Load file", data=uploaded_file, path=file_path))
                 session.set('data', data)
                 view.show_message("✅ Data loaded successfully!", "success")
+                # Delete temp file after processing with DASK Done
+                if data is not None:
+                    sfn_view.delete_uploaded_file(file_path)
 
         # Display data preview
         view.display_subheader("Data Preview")
@@ -54,10 +60,30 @@ def run_app():
             # Get AI suggestions for mapping
             if session.get('suggested_mapping') is None:
                 with view.display_spinner('🤖 AI is analyzing columns for mapping...'):
-                    mapping_agent = SFNColumnMappingAgent()
+                    mapping_agent = SFNColumnMappingAgent(llm_provider=DEFAULT_LLM_PROVIDER)
                     mapping_task = Task("Suggest mappings", data={'table': session.get('data')})
-                    suggested_mapping = mapping_agent.execute_task(mapping_task)
-                    session.set('suggested_mapping', suggested_mapping)
+                    validation_task = Task("Validate Suggested mappings", data={'table': session.get('data')})  # Create validation task
+                    validate_and_retry_agent = SFNValidateAndRetryAgent(
+                        llm_provider=DEFAULT_LLM_PROVIDER, 
+                        for_agent='column_mapping'
+                    )
+                    try:
+                        suggested_mapping, validation_message, is_valid = validate_and_retry_agent.complete(
+                            agent_to_validate=mapping_agent,
+                            task=mapping_task,
+                            validation_task=validation_task,
+                            method_name='execute_task',
+                            get_validation_params='get_validation_params',
+                            max_retries=3,
+                            retry_delay=3.0
+                        )
+                        
+                        if not is_valid:
+                            sfn_view.show_message(f"⚠️ Warning: AI has suggested mappings but couldn't be validated, Please proceed with manual mapping/selection - {validation_message}", "warning")
+                        session.set('suggested_mapping', suggested_mapping)
+                    except Exception as e:
+                        sfn_view.show_message(f"❌ Error: {str(e)}", "error")
+                        logger.error(str(e))
                     
             # Display AI suggested mappings
             suggested = session.get('suggested_mapping', {})
@@ -157,13 +183,37 @@ def run_app():
             
             if session.get('aggregation_analysis') is None:
                 with view.display_spinner('🤖 AI is analyzing aggregation needs...'):
-                    aggregation_agent = SFNAggregationAgent()
-                    agg_task = Task("Analyze aggregation", data={
+                    aggregation_agent = SFNAggregationAgent(llm_provider=DEFAULT_LLM_PROVIDER)
+                    data={
                         'table': session.get('data'),
                         'mapping_columns': session.get('confirmed_mapping')
-                    })
-                    aggregation_analysis = aggregation_agent.execute_task(agg_task)
-                    session.set('aggregation_analysis', aggregation_analysis)
+                    }
+                    agg_task = Task("Analyze aggregation",data=data)
+                    validation_task = Task("Validate category", data=data)  # Create validation task
+                
+                    validate_and_retry_agent = SFNValidateAndRetryAgent(
+                        llm_provider=DEFAULT_LLM_PROVIDER, 
+                        for_agent='aggregation_suggestions'
+                    )
+                
+                    try:
+                        aggregation_analysis, validation_message, is_valid = validate_and_retry_agent.complete(
+                            agent_to_validate=aggregation_agent,
+                            task=agg_task,
+                            validation_task=validation_task,
+                            method_name='execute_task',
+                            get_validation_params='get_validation_params',
+                            max_retries=3,
+                            retry_delay=3.0
+                        )
+                        
+                        if not is_valid:
+                            sfn_view.show_message(f"⚠️ Warning: AI has generated suggestions but couldn't be validated, Please proceed with manual mapping/selection - {validation_message}", "warning")
+                            
+                        session.set('aggregation_analysis', aggregation_analysis)
+                    except Exception as e:
+                        view.show_message(f"❌ Error: {str(e)}", "error")
+                        logger.error(str(e))
 
             # Handle aggregation analysis results
             analysis_result = session.get('aggregation_analysis')
