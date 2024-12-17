@@ -1,10 +1,11 @@
 import streamlit as st
-from sfn_blueprint import Task, SFNSessionManager, SFNDataLoader
+from sfn_blueprint import Task, SFNSessionManager
 from agents.aggregation_agent import SFNAggregationAgent
 from agents.column_mapping_agent import SFNColumnMappingAgent
 from views.streamlit_views import StreamlitView
 import logging
 from utils.data_type_utils import DataTypeUtils
+from utils.custom_data_loader import CustomDataLoader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +38,7 @@ def run_app():
     if uploaded_file is not None:
         if session.get('data') is None:
             with view.display_spinner('Loading data...'):
-                data_loader = SFNDataLoader()
+                data_loader = CustomDataLoader()
                 data = data_loader.execute_task(Task("Load file", data=uploaded_file))
                 session.set('data', data)
                 view.show_message("✅ Data loaded successfully!", "success")

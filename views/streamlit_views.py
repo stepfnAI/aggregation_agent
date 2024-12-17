@@ -15,7 +15,7 @@ class StreamlitView(SFNStreamlitView):
             index = options.index(default)
         else:
             index = 0
-        return st.session_state(label, options, key=key, index=index)
+        return st.selectbox(label, options, key=key, index=index)
     
     def file_uploader(self, label: str, key: str, accepted_types: List[str]) -> Optional[str]:
         return st.file_uploader(label, key=key, type=accepted_types)
