@@ -21,7 +21,7 @@ def run_app():
     with col1:
         view.display_title()
     with col2:
-        if view.display_button("🔄", key="reset_button"):
+        if view.display_button("🔄 Reset", key="reset_button", use_container_width=True):
             session.clear()
             if 'uploaded_file' in view.session_state:
                 del view.session_state['uploaded_file']
@@ -29,20 +29,28 @@ def run_app():
 
     # Step 1: Data Loading and Preview
     view.display_header("Step 1: Data Loading")
-    uploaded_file = view.file_uploader(
-        "Choose a file",
-        key="uploaded_file",
-        accepted_types=["csv", "xlsx", "json", "parquet"]
-    )
-
-    if uploaded_file is not None:
-        if session.get('data') is None:
+    
+    if session.get('data') is None:
+        # Only show file uploader if no data is loaded
+        uploaded_file = view.file_uploader(
+            "Choose a file",
+            key="uploaded_file",
+            accepted_types=["csv", "xlsx", "json", "parquet"]
+        )
+        
+        if uploaded_file is not None:
             with view.display_spinner('Loading data...'):
                 data_loader = CustomDataLoader()
                 data = data_loader.execute_task(Task("Load file", data=uploaded_file))
                 session.set('data', data)
+                session.set('file_name', uploaded_file.name)
                 view.show_message("✅ Data loaded successfully!", "success")
+                view.rerun_script()  # Force refresh to hide uploader
+    else:
+        # Just display the name of currently loaded file
+        view.show_message(f"📁 Current file: {session.get('file_name')}", "info")
 
+    if session.get('data') is not None:
         # Display data preview
         view.display_subheader("Data Preview")
         view.display_dataframe(session.get('data').head())

@@ -34,7 +34,7 @@ class StreamlitView(SFNStreamlitView):
             label_visibility=label_visibility
         )
     
-    def display_button(self, label: str, key: Optional[str] = None) -> bool:
+    def display_button(self, label: str, key: Optional[str] = None, use_container_width: bool = False) -> bool:
         """Display a button with proper labeling"""
         button_key = key if key else f"button_{label}"
-        return st.button(label=label, key=button_key)
+        return st.button(label=label, key=button_key, use_container_width=use_container_width)
