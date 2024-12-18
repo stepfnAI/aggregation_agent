@@ -1,5 +1,6 @@
 myenv
 env
+.env
 venv
 *.db
 *.db.sqlite3
