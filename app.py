@@ -68,7 +68,7 @@ def run_app():
                         for_agent='column_mapping'
                     )
                     try:
-                        suggested_mapping, validation_message, is_valid = validate_and_retry_agent.complete(
+                        suggested_mapping, mapping_validation_message, is_mapping_valid = validate_and_retry_agent.complete(
                             agent_to_validate=mapping_agent,
                             task=mapping_task,
                             validation_task=validation_task,
@@ -78,9 +78,10 @@ def run_app():
                             retry_delay=3.0
                         )
                         
-                        if not is_valid:
-                            sfn_view.show_message(f"⚠️ Warning: AI has suggested mappings but couldn't be validated, Please proceed with manual mapping/selection - {validation_message}", "warning")
+                        if not is_mapping_valid:
+                            sfn_view.show_message(f"⚠️ Warning: AI has suggested mappings but couldn't be validated, Please proceed with manual mapping/selection - {mapping_validation_message}", "warning")
                         session.set('suggested_mapping', suggested_mapping)
+                        view.session_state['is_mapping_valid'] = is_mapping_valid
                     except Exception as e:
                         sfn_view.show_message(f"❌ Error: {str(e)}", "error")
                         logger.error(str(e))
@@ -92,7 +93,7 @@ def run_app():
             has_required_mappings = (suggested.get('customer_id') is not None and 
                                    suggested.get('date') is not None)
 
-            if has_required_mappings:
+            if has_required_mappings and view.session_state.get('is_mapping_valid'):
                 view.display_markdown("### AI Suggested Group By Columns")
                 # Show suggested mappings in a clean format
                 mapping_text = "**These columns will define the granularity of your data:**\n"
@@ -127,7 +128,7 @@ def run_app():
                 show_modify = True  # Automatically show modification interface
 
             # Only show modification interface if modify button is clicked
-            if session.get('show_modify_mapping'):
+            if session.get('show_modify_mapping') or not view.session_state.get('is_mapping_valid'):
                 view.display_markdown("### Select Group By Columns")
                 columns = [''] + list(session.get('data').columns)
                 
@@ -136,21 +137,21 @@ def run_app():
                     "Customer ID Column (Required)",
                     options=columns,
                     key="customer_id",
-                    default=suggested.get('customer_id', '')
+                    default = None if not view.session_state.get('is_mapping_valid') else suggested.get('customer_id', '')
                 )
                 
                 mapping['date'] = view.select_box(
                     "Date Column (Required)",
                     options=columns,
                     key="date",
-                    default=suggested.get('date', '')
+                    default = None if not view.session_state.get('is_mapping_valid') else suggested.get('date', '')
                 )
                 
                 mapping['product_id'] = view.select_box(
                     "Product ID Column (Optional)",
                     options=['None'] + list(session.get('data').columns),
                     key="product_id",
-                    default=suggested.get('product_id', 'None')
+                    default = None if not view.session_state.get('is_mapping_valid') else suggested.get('product_id', '')
                 )
 
                 if mapping['customer_id'] and mapping['date']:
@@ -197,7 +198,7 @@ def run_app():
                     )
                 
                     try:
-                        aggregation_analysis, validation_message, is_valid = validate_and_retry_agent.complete(
+                        aggregation_analysis, aggregation_validation_message, is_aggregation_valid = validate_and_retry_agent.complete(
                             agent_to_validate=aggregation_agent,
                             task=agg_task,
                             validation_task=validation_task,
@@ -207,10 +208,10 @@ def run_app():
                             retry_delay=3.0
                         )
                         
-                        if not is_valid:
-                            sfn_view.show_message(f"⚠️ Warning: AI has generated suggestions but couldn't be validated, Please proceed with manual mapping/selection - {validation_message}", "warning")
-                            
+                        if not is_aggregation_valid:
+                            sfn_view.show_message(f"⚠️ Warning: AI has generated suggestions but couldn't be validated, Please proceed with manual mapping/selection - {aggregation_validation_message}", "warning")
                         session.set('aggregation_analysis', aggregation_analysis)
+                        view.session_state['is_aggregation_valid'] = is_aggregation_valid
                     except Exception as e:
                         view.show_message(f"❌ Error: {str(e)}", "error")
                         logger.error(str(e))
@@ -252,7 +253,7 @@ def run_app():
                     view.show_message(method_text, "success")
                 else:
                     # Check if AI provided suggestions
-                    if not analysis_result or not isinstance(analysis_result, dict) or not analysis_result:
+                    if not view.session_state.get('is_aggregation_valid') or not analysis_result or not isinstance(analysis_result, dict) or not analysis_result:
                         view.show_message("⚠️ AI couldn't generate aggregation suggestions. Please select appropriate methods manually.", "warning")
                     else:
                         # Get all column info excluding groupby columns
@@ -303,7 +304,7 @@ def run_app():
                     column_info = DataTypeUtils.get_column_info(df, exclude_columns=mapping_columns)
                     
                     # Get LLM suggestions
-                    llm_suggestions = analysis_result if isinstance(analysis_result, dict) else {}
+                    llm_suggestions = analysis_result if isinstance(analysis_result, dict) and view.session_state.get('is_aggregation_valid') else {}
                     
                     # Create DataFrame for aggregation methods
                     method_names = ['Min', 'Max', 'Sum', 'Unique Count', 'Mean', 'Median', 'Mode', 'Last Value']
@@ -378,12 +379,13 @@ def run_app():
                     
                     # Explanations section
                     view.display_markdown("---")
-                    if view.display_button("Show Aggregation Explanations"):
-                        view.display_markdown("### Aggregation Method Explanations")
-                        for feature in explanations_dict:
-                            view.display_markdown(f"**{feature}**")
-                            for method, explanation in explanations_dict[feature].items():
-                                view.display_markdown(f"- **{method}**: {explanation}")
+                    if view.session_state.get('is_aggregation_valid'):
+                        if view.display_button("Show Aggregation Explanations"):
+                            view.display_markdown("### Aggregation Method Explanations")
+                            for feature in explanations_dict:
+                                view.display_markdown(f"**{feature}**")
+                                for method, explanation in explanations_dict[feature].items():
+                                    view.display_markdown(f"- **{method}**: {explanation}")
                     
                     if view.display_button("Confirm Aggregation Methods"):
                         # Filter out empty selections and handle multiple methods per column

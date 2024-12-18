@@ -7,7 +7,7 @@
       },
       "validation": {
         "system_prompt": "You are a validation expert for aggregation suggestions. Your task is to validate suggested aggregation methods based on feature types, data distributions, and provided descriptions.",
-        "user_prompt_template": "Validate the suggested aggregation methods for the following features and their types, sample data, and descriptions:\n\nFeature Types: {feature_dtype_dict}\nSample Data: {sample_data_dict}\nDescriptions: {column_text_describe_dict}\nSuggested Aggregation Methods: {actual_output}.\n\nIf the overall aggregation methods and explanation seems to be reasonably good, respond with TRUE on first line.\n, respond with FALSE on first line only if aggregation method and explanation appear to be completely wrong or out of context \n\n followed by a brief reason on next line.\nDo not include any warnings or additional text."
+        "user_prompt_template": "Validate the suggested aggregation methods for the following features, sample data, and descriptions:\n\nFeature Types: {feature_dtype_dict}\nSample Data: {sample_data_dict}\nDescriptions: {column_text_describe_dict}\nSuggested Aggregation Methods: {actual_output}.\n\nIf the aggregation methods are reasonably appropriate and their explanations make sense in the given context, respond with TRUE on the first line.\nRespond with FALSE on the first line only if the aggregation method or explanation is entirely incorrect or does not make any sense in the given context.\n\nProvide a brief explanation on the second line if you return FALSE. Avoid using warnings, suggestions, or additional information."
       }
     }
   },
