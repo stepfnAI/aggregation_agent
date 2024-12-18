@@ -28,9 +28,9 @@ cd aggregation-agent
 2. Create and activate a virtual environment:
 
 ```bash
-python -m venv myenv  # or use python3 if you have multiple Python versions
+python -m venv myenv      # or use python3 if you have multiple Python versions
 source myenv/bin/activate # Linux/Mac
-.\myenv\Scripts\activate # Windows
+.\myenv\Scripts\activate  # Windows
 ```
 
 3. Install dependencies:
