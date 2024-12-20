@@ -1,7 +1,7 @@
 from typing import Dict
 import pandas as pd
 from sfn_blueprint import SFNAgent, Task, SFNOpenAIClient, SFNPromptManager
-from config.model_config import MODEL_CONFIG
+from aggregation_agent.config.model_config import MODEL_CONFIG
 import os
 import json
 import re

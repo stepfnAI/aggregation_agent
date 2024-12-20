@@ -14,7 +14,7 @@ An AI-powered data aggregation tool that intelligently analyzes your dataset and
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.7+
+- Python 3.8+
 - OpenAI API key
 
 ### Installation
