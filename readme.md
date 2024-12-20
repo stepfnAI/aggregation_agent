@@ -25,18 +25,20 @@ git clone https://github.com/stepfnAI/aggregation-agent.git
 cd aggregation-agent
 ```
 
-2. Create and activate a virtual environment:
+2. Create and activate a virtual environment using virtualenv:
 
 ```bash
-python -m venv myenv      # or use python3 if you have multiple Python versions
-source myenv/bin/activate # Linux/Mac
-.\myenv\Scripts\activate  # Windows
+pip install virtualenv                # Install virtualenv if not already installed
+virtualenv venv                       # Create virtual environment
+source venv/bin/activate             # Linux/Mac
+# OR
+.\venv\Scripts\activate              # Windows
 ```
 
-3. Install dependencies:
+3. Install the package in editable mode:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
 4. Set up your OpenAI API key:
