@@ -21,7 +21,7 @@ An AI-powered data aggregation tool that intelligently analyzes your dataset and
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/stepfnAI/aggregation-agent.git
+git clone https://github.com/stepfnAI/aggregation_agent.git
 cd aggregation-agent
 ```
 
