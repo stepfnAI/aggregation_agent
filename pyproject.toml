@@ -20,5 +20,5 @@ dependencies = [
 "Homepage" = "https://github.com/stepfnAI/aggregation_agent"
 "Bug Tracker" = "https://github.com/stepfnAI/aggregation_agent/issues"
 
-[tool.setuptools]
+[tool.hatch.build.targets.wheel]
 packages = ["aggregation_agent"]
