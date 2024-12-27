@@ -77,7 +77,7 @@ def run_app():
                             max_retries=3,
                             retry_delay=3.0
                         )
-                        
+                                               
                         if not is_mapping_valid:
                             sfn_view.show_message(f"⚠️ Warning: AI has suggested mappings but couldn't be validated, Please proceed with manual mapping/selection - {mapping_validation_message}", "warning")
                         session.set('suggested_mapping', suggested_mapping)
@@ -207,7 +207,7 @@ def run_app():
                             max_retries=3,
                             retry_delay=3.0
                         )
-                        
+                                                
                         if not is_aggregation_valid:
                             sfn_view.show_message(f"⚠️ Warning: AI has generated suggestions but couldn't be validated, Please proceed with manual mapping/selection - {aggregation_validation_message}", "warning")
                         session.set('aggregation_analysis', aggregation_analysis)
@@ -219,11 +219,13 @@ def run_app():
             # Handle aggregation analysis results
             analysis_result = session.get('aggregation_analysis')
             
-            if analysis_result is False:
-                view.show_message("✅ No aggregation needed - data is already at the desired granularity.", "success")
+            # Check for special no-aggregation-needed response
+            if isinstance(analysis_result, dict) and analysis_result.get('__no_aggregation_needed__'):
+                view.show_message(analysis_result.get('__message__', "✅ No aggregation needed - data is already at the desired granularity."), "success")
                 # Set the original data as aggregated_data since no aggregation is needed
                 session.set('aggregated_data', session.get('data'))
                 session.set('aggregation_complete', True)
+                session.set('aggregation_confirmed', True)  # Mark as confirmed to skip aggregation UI
             else:
                 if session.get('aggregation_confirmed'):
                     # Display confirmed aggregation methods

@@ -20,15 +20,24 @@ class SFNAggregationAgent(SFNAgent):
         """Main entry point for the agent's task execution"""
         df = task.data.get('table')
         mapping_columns = task.data.get('mapping_columns', {})
+
         
         # First check if aggregation is needed
         needs_aggregation = self._check_aggregation_needed(df, mapping_columns)
         
         if not needs_aggregation:
-            return False
+            # Return a special response that indicates no aggregation needed
+            return {
+                "__no_aggregation_needed__": True,
+                "__message__": "No aggregation needed for this dataset as there are no duplicate rows after grouping."
+            }
         
         # If aggregation is needed, get suggestions with explanations
-        return self._generate_aggregation_suggestions(df, mapping_columns)
+        try:
+            result = self._generate_aggregation_suggestions(df, mapping_columns)
+            return result
+        except Exception as e:
+            raise
 
     def _clean_json_string(self, json_string: str) -> Dict:
         """Clean and validate JSON string from LLM response"""
@@ -38,7 +47,6 @@ class SFNAggregationAgent(SFNAgent):
             end_idx = json_string.rfind('}')
             
             if start_idx == -1 or end_idx == -1:
-                print("No valid JSON structure found")
                 return {}
             
             # Extract just the JSON part
@@ -57,12 +65,10 @@ class SFNAggregationAgent(SFNAgent):
             # Parse the cleaned JSON
             cleaned_dict = json.loads(json_string)
             if not isinstance(cleaned_dict, dict):
-                print(f"Invalid JSON structure: {cleaned_dict}")
                 return {}
             
             return cleaned_dict
         except (ValueError, json.decoder.JSONDecodeError) as e:
-            print(f"JSON parsing error: {e}")
             return {}
 
     def _check_aggregation_needed(self, df: pd.DataFrame, mapping_columns: Dict) -> bool:
@@ -83,10 +89,12 @@ class SFNAggregationAgent(SFNAgent):
             return False
             
         grouped = df.groupby(groupby_cols).size().reset_index(name='count')
-        return (grouped['count'] > 1).any()
+        result = (grouped['count'] > 1).any()
+        return result
 
     def _generate_aggregation_suggestions(self, df: pd.DataFrame, mapping_columns: Dict) -> Dict:
         """Generate detailed aggregation suggestions with explanations"""
+        
         # Prepare data type dictionary
         feature_dtype_dict = df.dtypes.astype(str).to_dict()
         
@@ -104,6 +112,7 @@ class SFNAggregationAgent(SFNAgent):
         
         # Remove groupby columns from consideration
         groupby_cols = [v for k, v in mapping_columns.items() if v is not None]
+        
         for col in groupby_cols:
             if col in feature_dtype_dict:
                 del feature_dtype_dict[col]
@@ -113,6 +122,7 @@ class SFNAggregationAgent(SFNAgent):
                 del sample_data_dict[col]
             if col in column_text_describe_dict:
                 del column_text_describe_dict[col]
+
 
         # Prepare groupby message
         if mapping_columns.get('product_id'):
@@ -128,6 +138,7 @@ class SFNAggregationAgent(SFNAgent):
                 f"- {mapping_columns['customer_id']}\n"
                 f"- {mapping_columns['date']}"
             )
+
 
         task_data = {
             'feature_dtype_dict': feature_dtype_dict,
@@ -165,17 +176,24 @@ class SFNAggregationAgent(SFNAgent):
             cleaned_json = self._clean_json_string(response)
             return cleaned_json
         except Exception as e:
-            print(f"Error processing aggregation suggestions: {e}")
             return {}
         
-    def get_validation_params(self, response: List[str], validation_task: Task) -> dict:
+    def get_validation_params(self, response: Union[Dict, List[str]], validation_task: Task) -> dict:
         """
         Generate validation prompts for the aggregation suggestions response.
         
-        :param response: List of generated aggregation suggestions to validate
+        :param response: Either a dict of suggestions or a list of strings to validate
         :param validation_task: Task object containing validation context
         :return: Dictionary containing validation prompts
         """
+        
+        # Check for special no-aggregation-needed response
+        if isinstance(response, dict) and response.get("__no_aggregation_needed__"):
+            return {
+                "system_prompt": "You are a simple validator that checks if aggregation is needed.",
+                "user_prompt": "The dataset has no duplicate rows after grouping, so no aggregation is needed.\nRespond with TRUE"
+            }
+            
         # Extract necessary data from validation task
         df = validation_task.data.get('table')
         # Prepare data type dictionary
@@ -190,12 +208,15 @@ class SFNAggregationAgent(SFNAgent):
             for col, dtype in feature_dtype_dict.items()
         }
 
+        # Convert response to list if it's a dict
+        response_list = list(response.keys()) if isinstance(response, dict) else response
+
         # Prepare context for validation
         validation_context = {
-            'feature_dtype_dict':feature_dtype_dict,
+            'feature_dtype_dict': feature_dtype_dict,
             'sample_data_dict': sample_data_dict,
             'column_text_describe_dict': column_text_describe_dict,
-            'actual_output': '\n'.join(response)
+            'actual_output': '\n'.join(response_list)
         }
         
         # Get validation prompts from prompt config
