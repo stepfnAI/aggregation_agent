@@ -1,11 +1,11 @@
 import streamlit as st
 from sfn_blueprint import Task, SFNSessionManager, SFNDataLoader, SFNStreamlitView, SFNValidateAndRetryAgent
-from agents.aggregation_agent import SFNAggregationAgent
-from agents.column_mapping_agent import SFNColumnMappingAgent
-from views.streamlit_views import StreamlitView
+from aggregation_agent.agents.aggregation_agent import SFNAggregationAgent
+from aggregation_agent.agents.column_mapping_agent import SFNColumnMappingAgent
+from aggregation_agent.views.streamlit_views import StreamlitView
 import logging
-from utils.data_type_utils import DataTypeUtils
-from config.model_config import DEFAULT_LLM_PROVIDER
+from aggregation_agent.utils.data_type_utils import DataTypeUtils
+from aggregation_agent.config.model_config import DEFAULT_LLM_PROVIDER
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
