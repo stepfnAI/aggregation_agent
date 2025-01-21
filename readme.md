@@ -14,7 +14,7 @@ An AI-powered data aggregation tool that intelligently analyzes your dataset and
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.9-3.11
 - OpenAI API key
 
 ### Installation
@@ -49,8 +49,14 @@ export OPENAI_API_KEY='your_openai_api_key'
 
 ### Running the Application
 
+Linux/Mac:
 ```bash
-streamlit run .\examples\app.py 
+streamlit run ./examples/app.py
+```
+
+Windows:
+```bash
+streamlit run .\examples\app.py
 ```
 
 ### 🔄 Workflow
