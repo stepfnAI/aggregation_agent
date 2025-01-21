@@ -9,7 +9,7 @@ authors = [
     { name = "StepFn AI" },
 ]
 description = "StepFn Aggregation Agent"
-readme = "README.md"
+readme = "readme.md"
 requires-python = ">=3.8"
 
 dependencies = [
