@@ -125,19 +125,21 @@ class SFNAggregationAgent(SFNAgent):
 
 
         # Prepare groupby message
+        groupby_message = "Aggregation will be on the following fields:\n"
+        
+        # Add available fields to the message
+        if mapping_columns.get('customer_id'):
+            groupby_message += f"- {mapping_columns['customer_id']}\n"
+        
+        if mapping_columns.get('date'):
+            groupby_message += f"- {mapping_columns['date']}\n"
+        
         if mapping_columns.get('product_id'):
-            groupby_message = (
-                f"Aggregation will be on three fields:\n"
-                f"- {mapping_columns['customer_id']}\n"
-                f"- {mapping_columns['date']}\n"
-                f"- {mapping_columns['product_id']}"
-            )
-        else:
-            groupby_message = (
-                f"Aggregation will be on two fields:\n"
-                f"- {mapping_columns['customer_id']}\n"
-                f"- {mapping_columns['date']}"
-            )
+            groupby_message += f"- {mapping_columns['product_id']}\n"
+            
+        # If no fields were added, provide a default message
+        if groupby_message == "Aggregation will be on the following fields:\n":
+            groupby_message = "Aggregation will be performed on available groupby columns"
 
 
         task_data = {
